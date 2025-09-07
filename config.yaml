@@ -1,0 +1,28 @@
+server:
+  address: ':8080'
+
+system_collector:
+  cpu_usage:
+    enabled: true
+    timeout: 10s
+  memory_usage:
+    enabled: true
+    timeout: 10s
+  disk_usage:
+    enabled: true
+    timeout: 10s
+  network_usage:
+    enabled: true
+    timeout: 10s
+  process_usage:
+    enabled: true
+    timeout: 10s
+  thread_usage:
+    enabled: true
+    timeout: 10s
+  socket_usage:
+    enabled: true
+    timeout: 10s
+  file_usage:
+    enabled: true
+    timeout: 10s
