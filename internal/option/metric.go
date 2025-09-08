@@ -1,38 +1,27 @@
-package main
+package option
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/shirou/gopsutil/cpu"
 	"github.com/spf13/cobra"
 
 	"github.com/aide-family/laurel/internal/config"
 	"github.com/aide-family/laurel/internal/core"
 )
 
-var configFile string
-
-var rootCmd = &cobra.Command{
-	Use:   "laurel",
-	Short: "Moon's custom exporter",
-	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
-	},
-}
+var metricConfigFile string
 
 var metricCmd = &cobra.Command{
 	Use:   "metric",
 	Short: "Metric commands",
 	Run: func(cmd *cobra.Command, args []string) {
 		registry := prometheus.NewRegistry()
-		config, err := config.Load(configFile)
+		config, err := config.Load(metricConfigFile)
 		if err != nil {
 			slog.Error("failed to load config", "error", err)
 			os.Exit(1)
@@ -52,21 +41,6 @@ var metricCmd = &cobra.Command{
 	},
 }
 
-var testCmd = &cobra.Command{
-	Use:   "test",
-	Short: "Test commands",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println(cpu.Info())
-		fmt.Println(cpu.Times(true))
-		fmt.Println(cpu.CountsWithContext(context.Background(), true))
-		fmt.Println(cpu.PercentWithContext(context.Background(), 1*time.Second, true))
-		fmt.Println(cpu.PercentWithContext(context.Background(), 1*time.Second, false))
-	},
-}
-
 func init() {
-	rootCmd.AddCommand(metricCmd)
-	metricCmd.Flags().StringVarP(&configFile, "config", "c", "config.yaml", "config file")
-
-	rootCmd.AddCommand(testCmd)
+	metricCmd.Flags().StringVarP(&metricConfigFile, "config", "c", "config.yaml", "config file")
 }
