@@ -54,6 +54,8 @@ func (c *cpuInspection) Show() {
 
 	// Get per-core usage
 	c.displayPerCoreUsage(percentPerCore)
+
+	fmt.Println()
 }
 
 // displayCPUInfo shows basic CPU information
