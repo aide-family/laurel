@@ -3,7 +3,6 @@ package inspection
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -44,11 +43,6 @@ const (
 
 // CPUInspection performs a comprehensive CPU inspection with professional formatting
 func CPUInspection() {
-	fmt.Printf("\n%s%s%s%s%s%s CPU System Inspection %s%s%s%s\n",
-		ColorGray, strings.Repeat("=", 25), ColorReset,
-		ColorBold, ColorCyan, IconCPU, IconCPU, ColorReset,
-		ColorGray, strings.Repeat("=", 25))
-
 	// Get CPU information
 	cpuInfo, err := cpu.Info()
 	if err != nil {
@@ -64,6 +58,7 @@ func CPUInspection() {
 
 	// Get per-core usage
 	displayPerCoreUsage()
+	fmt.Println()
 }
 
 // displayCPUInfo shows basic CPU information
@@ -76,7 +71,7 @@ func displayCPUInfo(cpuInfo []cpu.InfoStat) {
 	t.SetStyle(table.StyleColoredBlackOnMagentaWhite)
 
 	t.SetTitle("CPU Information")
-	t.AppendHeader(table.Row{"Model", "Total Cores", "Physical Cores", "Logical Cores", "Frequency", "Cache Size", "Flags"})
+	t.AppendHeader(table.Row{"Model", "Total Cores", "Physical Cores", "Logical Cores", "Frequency", "Cache Size"})
 
 	for _, info := range cpuInfo {
 
@@ -97,7 +92,6 @@ func displayCPUInfo(cpuInfo []cpu.InfoStat) {
 			fmt.Sprintf("%d", logicalCount),
 			fmt.Sprintf("%.2f GHz", float64(info.Mhz)/1000),
 			fmt.Sprintf("%d KB", info.CacheSize),
-			strings.Join(info.Flags, ","),
 		})
 	}
 
@@ -126,8 +120,8 @@ func displayCPUUsage() {
 	for i, usage := range percent {
 		t.AppendRow(table.Row{
 			fmt.Sprintf("Core %d", i+1),
-			fmt.Sprintf("%.1f%%", usage),
-			getUsageStatus(usage),
+			getColoredUsage(usage),
+			getColoredStatus(usage),
 		})
 	}
 
@@ -157,8 +151,8 @@ func displayPerCoreUsage() {
 	for i, usage := range percent {
 		t.AppendRow(table.Row{
 			fmt.Sprintf("Core %d", i+1),
-			fmt.Sprintf("%.1f%%", usage),
-			getUsageStatus(usage),
+			getColoredUsage(usage),
+			getColoredStatus(usage),
 		})
 	}
 
@@ -179,13 +173,35 @@ func getUsageStatus(usage float64) string {
 	}
 }
 
+// getUsageColor returns color code based on usage percentage
+func getUsageColor(usage float64) string {
+	switch {
+	case usage >= 95:
+		return "\033[91m" // Bright red for super high
+	case usage >= 80:
+		return "\033[91m" // Bright red for high
+	case usage >= 60:
+		return "\033[93m" // Bright yellow for warning
+	default:
+		return "\033[92m" // Bright green for normal
+	}
+}
+
+// getColoredUsage returns colored usage percentage
+func getColoredUsage(usage float64) string {
+	color := getUsageColor(usage)
+	return fmt.Sprintf("%s%.1f%%%s", color, usage, ColorReset)
+}
+
+// getColoredStatus returns colored status text
+func getColoredStatus(usage float64) string {
+	color := getUsageColor(usage)
+	status := getUsageStatus(usage)
+	return fmt.Sprintf("%s%s%s", color, status, ColorReset)
+}
+
 // MemoryInspection performs a comprehensive memory inspection with professional formatting
 func MemoryInspection() {
-	fmt.Printf("\n%s%s%s%s%s%s Memory System Inspection %s%s%s%s\n",
-		ColorGray, strings.Repeat("=", 25), ColorReset,
-		ColorBold, ColorCyan, IconMemory, IconMemory, ColorReset,
-		ColorGray, strings.Repeat("=", 25))
-
 	// Get memory information
 	memInfo, err := mem.VirtualMemory()
 	if err != nil {
@@ -201,33 +217,24 @@ func MemoryInspection() {
 
 	// Display swap information
 	displaySwapInfo()
+	fmt.Println()
 }
 
 // displayMemoryInfo shows basic memory information
 func displayMemoryInfo(memInfo *mem.VirtualMemoryStat) {
 	// Create memory information table
 	t := table.NewWriter()
+	t.SetStyle(table.StyleColoredBlackOnMagentaWhite)
 	t.SetTitle("Memory Information")
-	t.AppendHeader(table.Row{"Property", "Value"})
-
+	t.AppendHeader(table.Row{"Total Memory", "Available Memory", "Used Memory", "Free Memory", "Active Memory", "Inactive Memory", "Wired Memory"})
 	t.AppendRow(table.Row{
-		IconRAM + " Total Memory",
 		formatBytes(memInfo.Total),
-	})
-
-	t.AppendRow(table.Row{
-		IconRAM + " Available Memory",
 		formatBytes(memInfo.Available),
-	})
-
-	t.AppendRow(table.Row{
-		IconRAM + " Used Memory",
 		formatBytes(memInfo.Used),
-	})
-
-	t.AppendRow(table.Row{
-		IconRAM + " Free Memory",
 		formatBytes(memInfo.Free),
+		formatBytes(memInfo.Active),
+		formatBytes(memInfo.Inactive),
+		formatBytes(memInfo.Wired),
 	})
 
 	fmt.Println(t.Render())
@@ -239,17 +246,13 @@ func displayMemoryUsage(memInfo *mem.VirtualMemoryStat) {
 
 	// Create memory usage table
 	t := table.NewWriter()
+	t.SetStyle(table.StyleColoredBlackOnBlueWhite)
 	t.SetTitle("Memory Usage")
-	t.AppendHeader(table.Row{"Metric", "Value"})
+	t.AppendHeader(table.Row{"Usage Percentage", "Status"})
 
 	t.AppendRow(table.Row{
-		IconUsage + " Usage Percentage",
-		fmt.Sprintf("%.1f%%", usagePercent),
-	})
-
-	t.AppendRow(table.Row{
-		IconRAM + " Memory Pressure",
-		getMemoryPressureText(usagePercent),
+		getColoredUsage(usagePercent),
+		getColoredStatus(usagePercent),
 	})
 
 	fmt.Println(t.Render())
@@ -257,10 +260,12 @@ func displayMemoryUsage(memInfo *mem.VirtualMemoryStat) {
 
 // displaySwapInfo shows swap memory information
 func displaySwapInfo() {
+	t := table.NewWriter()
+	t.SetStyle(table.StyleColoredBlackOnYellowWhite)
 	swapInfo, err := mem.SwapMemory()
 	if err != nil {
 		// Create swap information table for unavailable swap
-		t := table.NewWriter()
+
 		t.SetTitle("Swap Information")
 		t.AppendHeader(table.Row{"Status"})
 
@@ -269,35 +274,21 @@ func displaySwapInfo() {
 		return
 	}
 
-	// Create swap information table
-	t := table.NewWriter()
 	t.SetTitle("Swap Information")
-	t.AppendHeader(table.Row{"Property", "Value"})
+	t.AppendHeader(table.Row{"Total Swap", "Used Swap", "Free Swap", "Usage Percentage"})
 
 	t.AppendRow(table.Row{
-		IconSwap + " Total Swap",
 		formatBytes(swapInfo.Total),
-	})
-
-	t.AppendRow(table.Row{
-		IconSwap + " Used Swap",
 		formatBytes(swapInfo.Used),
-	})
-
-	t.AppendRow(table.Row{
-		IconSwap + " Free Swap",
 		formatBytes(swapInfo.Free),
+		func() string {
+			if swapInfo.Total == 0 {
+				return getColoredUsage(0.0)
+			}
+			swapPercent := (float64(swapInfo.Used) / float64(swapInfo.Total)) * 100
+			return getColoredUsage(swapPercent)
+		}(),
 	})
-
-	// Swap usage percentage
-	if swapInfo.Total > 0 {
-		swapPercent := (float64(swapInfo.Used) / float64(swapInfo.Total)) * 100
-
-		t.AppendRow(table.Row{
-			IconUsage + " Usage Percentage",
-			fmt.Sprintf("%.1f%%", swapPercent),
-		})
-	}
 
 	fmt.Println(t.Render())
 }
