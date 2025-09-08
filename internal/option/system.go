@@ -23,9 +23,9 @@ var systemCmd = &cobra.Command{
 		for _, option := range strings.Split(options, ",") {
 			switch option {
 			case "cpu":
-				// 	inspection.CPUInspection()
-				// case "memory":
-				// 	inspection.MemoryInspection()
+				inspection.CPUInspection()
+			case "memory":
+				inspection.MemoryInspection()
 				// case "disk":
 				// 	inspection.DiskInspection()
 				// case "network":
@@ -38,9 +38,10 @@ var systemCmd = &cobra.Command{
 }
 
 func init() {
-	systemCmd.Flags().StringSliceVarP(&systemInspectionOptions, "inspection", "i", []string{"cpu"}, "Inspection options")
+	systemCmd.Flags().StringSliceVarP(&systemInspectionOptions, "inspection", "i", []string{"all"}, "Inspection options")
 }
 
 func showAllInspectionOptions() {
 	inspection.CPUInspection()
+	inspection.MemoryInspection()
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/mem"
 )
 
 // Color codes for terminal output - optimized for dark themes
@@ -35,12 +36,18 @@ const (
 	IconInfo    = "ℹ️"
 	IconBar     = "█"
 	IconEmpty   = "░"
+	IconMemory  = "💾"
+	IconRAM     = "🧠"
+	IconSwap    = "🔄"
+	IconStorage = "💿"
 )
 
 // CPUInspection performs a comprehensive CPU inspection with professional formatting
 func CPUInspection() {
-	fmt.Printf("\n%s%s%s CPU System Inspection %s%s\n", ColorBold, ColorCyan, IconCPU, IconCPU, ColorReset)
-	fmt.Printf("%s%s%s%s%s\n", ColorGray, strings.Repeat("=", 50), ColorReset, ColorGray, strings.Repeat("=", 50))
+	fmt.Printf("\n%s%s%s%s%s%s CPU System Inspection %s%s%s%s\n",
+		ColorGray, strings.Repeat("=", 25), ColorReset,
+		ColorBold, ColorCyan, IconCPU, IconCPU, ColorReset,
+		ColorGray, strings.Repeat("=", 25))
 
 	// Get CPU information
 	cpuInfo, err := cpu.Info()
@@ -57,8 +64,6 @@ func CPUInspection() {
 
 	// Get per-core usage
 	displayPerCoreUsage()
-
-	fmt.Printf("\n%s%s%s Inspection Complete %s%s\n", ColorBold, ColorGreen, IconSuccess, IconSuccess, ColorReset)
 }
 
 // displayCPUInfo shows basic CPU information
@@ -185,4 +190,167 @@ func generateUsageBar(usage float64, width int) string {
 
 	bar := strings.Repeat(IconBar, filled) + strings.Repeat(IconEmpty, width-filled)
 	return fmt.Sprintf("[%s]", bar)
+}
+
+// MemoryInspection performs a comprehensive memory inspection with professional formatting
+func MemoryInspection() {
+	fmt.Printf("\n%s%s%s%s%s%s Memory System Inspection %s%s%s%s\n",
+		ColorGray, strings.Repeat("=", 25), ColorReset,
+		ColorBold, ColorCyan, IconMemory, IconMemory, ColorReset,
+		ColorGray, strings.Repeat("=", 25))
+
+	// Get memory information
+	memInfo, err := mem.VirtualMemory()
+	if err != nil {
+		fmt.Printf("%s%s Error getting memory info: %v%s\n", ColorRed, IconWarning, err, ColorReset)
+		return
+	}
+
+	// Display memory basic information
+	displayMemoryInfo(memInfo)
+
+	// Display memory usage statistics
+	displayMemoryUsage(memInfo)
+
+	// Display swap information
+	displaySwapInfo()
+}
+
+// displayMemoryInfo shows basic memory information
+func displayMemoryInfo(memInfo *mem.VirtualMemoryStat) {
+	fmt.Printf("\n%s%s%s Memory Information %s\n", ColorBold, ColorBlue, IconInfo, ColorReset)
+
+	// Total memory
+	fmt.Printf("%s%s%s Total: %s%s%s\n",
+		ColorWhite, IconRAM, ColorReset,
+		ColorCyan, formatBytes(memInfo.Total), ColorReset)
+
+	// Available memory
+	fmt.Printf("%s%s%s Available: %s%s%s\n",
+		ColorWhite, IconRAM, ColorReset,
+		ColorGreen, formatBytes(memInfo.Available), ColorReset)
+
+	// Used memory
+	fmt.Printf("%s%s%s Used: %s%s%s\n",
+		ColorWhite, IconRAM, ColorReset,
+		ColorYellow, formatBytes(memInfo.Used), ColorReset)
+
+	// Free memory
+	fmt.Printf("%s%s%s Free: %s%s%s\n",
+		ColorWhite, IconRAM, ColorReset,
+		ColorPurple, formatBytes(memInfo.Free), ColorReset)
+}
+
+// displayMemoryUsage shows memory usage statistics
+func displayMemoryUsage(memInfo *mem.VirtualMemoryStat) {
+	fmt.Printf("\n%s%s%s Memory Usage %s\n", ColorBold, ColorBlue, IconUsage, ColorReset)
+
+	usagePercent := memInfo.UsedPercent
+	color := getMemoryUsageColor(usagePercent)
+	bar := generateUsageBar(usagePercent, 20)
+
+	fmt.Printf("%s%s%s Usage: %s%.1f%%%s %s%s\n",
+		ColorWhite, IconUsage, ColorReset,
+		color, usagePercent, ColorReset,
+		ColorGray, bar)
+
+	// Memory pressure indicator
+	fmt.Printf("%s%s%s Pressure: %s%s%s\n",
+		ColorWhite, IconRAM, ColorReset,
+		getMemoryPressureColor(usagePercent), getMemoryPressureText(usagePercent), ColorReset)
+}
+
+// displaySwapInfo shows swap memory information
+func displaySwapInfo() {
+	swapInfo, err := mem.SwapMemory()
+	if err != nil {
+		fmt.Printf("\n%s%s%s Swap Information %s\n", ColorBold, ColorBlue, IconSwap, ColorReset)
+		fmt.Printf("%s%s Swap not available or disabled%s\n", ColorYellow, IconWarning, ColorReset)
+		return
+	}
+
+	fmt.Printf("\n%s%s%s Swap Information %s\n", ColorBold, ColorBlue, IconSwap, ColorReset)
+
+	// Total swap
+	fmt.Printf("%s%s%s Total: %s%s%s\n",
+		ColorWhite, IconSwap, ColorReset,
+		ColorCyan, formatBytes(swapInfo.Total), ColorReset)
+
+	// Used swap
+	fmt.Printf("%s%s%s Used: %s%s%s\n",
+		ColorWhite, IconSwap, ColorReset,
+		ColorYellow, formatBytes(swapInfo.Used), ColorReset)
+
+	// Free swap
+	fmt.Printf("%s%s%s Free: %s%s%s\n",
+		ColorWhite, IconSwap, ColorReset,
+		ColorGreen, formatBytes(swapInfo.Free), ColorReset)
+
+	// Swap usage percentage
+	if swapInfo.Total > 0 {
+		swapPercent := (float64(swapInfo.Used) / float64(swapInfo.Total)) * 100
+		color := getMemoryUsageColor(swapPercent)
+		bar := generateUsageBar(swapPercent, 20)
+
+		fmt.Printf("%s%s%s Usage: %s%.1f%%%s %s%s\n",
+			ColorWhite, IconUsage, ColorReset,
+			color, swapPercent, ColorReset,
+			ColorGray, bar)
+	}
+}
+
+// formatBytes converts bytes to human readable format
+func formatBytes(bytes uint64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// getMemoryUsageColor returns appropriate color based on memory usage percentage
+func getMemoryUsageColor(usage float64) string {
+	switch {
+	case usage >= 90:
+		return ColorRed
+	case usage >= 80:
+		return ColorYellow
+	case usage >= 60:
+		return ColorBlue
+	default:
+		return ColorGreen
+	}
+}
+
+// getMemoryPressureColor returns color for memory pressure indicator
+func getMemoryPressureColor(usage float64) string {
+	switch {
+	case usage >= 90:
+		return ColorRed
+	case usage >= 80:
+		return ColorYellow
+	case usage >= 60:
+		return ColorBlue
+	default:
+		return ColorGreen
+	}
+}
+
+// getMemoryPressureText returns text for memory pressure indicator
+func getMemoryPressureText(usage float64) string {
+	switch {
+	case usage >= 90:
+		return "Critical"
+	case usage >= 80:
+		return "High"
+	case usage >= 60:
+		return "Moderate"
+	default:
+		return "Low"
+	}
 }
