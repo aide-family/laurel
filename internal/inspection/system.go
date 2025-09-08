@@ -3,10 +3,10 @@ package inspection
 import (
 	"context"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
+	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/mem"
 )
@@ -28,18 +28,18 @@ const (
 
 // Icons for different status levels
 const (
-	IconCPU     = "🖥️"
-	IconCore    = "⚡"
-	IconUsage   = "📊"
-	IconWarning = "⚠️"
-	IconSuccess = "✅"
-	IconInfo    = "ℹ️"
-	IconBar     = "█"
-	IconEmpty   = "░"
-	IconMemory  = "💾"
-	IconRAM     = "🧠"
-	IconSwap    = "🔄"
-	IconStorage = "💿"
+	IconCPU     = ""
+	IconCore    = ""
+	IconUsage   = ""
+	IconWarning = ""
+	IconSuccess = ""
+	IconInfo    = ""
+	IconBar     = ""
+	IconEmpty   = ""
+	IconMemory  = ""
+	IconRAM     = ""
+	IconSwap    = ""
+	IconStorage = ""
 )
 
 // CPUInspection performs a comprehensive CPU inspection with professional formatting
@@ -71,46 +71,41 @@ func displayCPUInfo(cpuInfo []cpu.InfoStat) {
 	if len(cpuInfo) == 0 {
 		return
 	}
+	// Create CPU information table
+	t := table.NewWriter()
+	t.SetStyle(table.StyleColoredBlackOnMagentaWhite)
 
-	info := cpuInfo[0] // Use first CPU for general info
+	t.SetTitle("CPU Information")
+	t.AppendHeader(table.Row{"Model", "Total Cores", "Physical Cores", "Logical Cores", "Frequency", "Cache Size", "Flags"})
 
-	// Get physical and logical core counts
-	physicalCount, err := cpu.Counts(false)
-	if err != nil {
-		physicalCount = 0
+	for _, info := range cpuInfo {
+
+		// Get physical and logical core counts
+		physicalCount, err := cpu.Counts(false)
+		if err != nil {
+			physicalCount = 0
+		}
+		logicalCount, err := cpu.Counts(true)
+		if err != nil {
+			logicalCount = 0
+		}
+
+		t.AppendRow(table.Row{
+			info.ModelName,
+			fmt.Sprintf("%d", int(info.Cores)),
+			fmt.Sprintf("%d", physicalCount),
+			fmt.Sprintf("%d", logicalCount),
+			fmt.Sprintf("%.2f GHz", float64(info.Mhz)/1000),
+			fmt.Sprintf("%d KB", info.CacheSize),
+			strings.Join(info.Flags, ","),
+		})
 	}
-	logicalCount, err := cpu.Counts(true)
-	if err != nil {
-		logicalCount = 0
-	}
 
-	fmt.Printf("\n%s%s%s CPU Information %s\n", ColorBold, ColorBlue, IconInfo, ColorReset)
-	fmt.Printf("%s%s%s Model: %s%s%s\n", ColorWhite, IconCPU, ColorReset, ColorCyan, info.ModelName, ColorReset)
-
-	// Display cores information with proper formatting
-	fmt.Printf("%s%s%s Cores: %s%d%s (Physical: %s%d%s, Logical: %s%d%s)\n",
-		ColorWhite, IconCore, ColorReset,
-		ColorYellow, int(info.Cores), ColorReset,
-		ColorYellow, physicalCount, ColorReset,
-		ColorYellow, logicalCount, ColorReset)
-
-	if info.Mhz > 0 {
-		fmt.Printf("%s%s%s Frequency: %s%.2f GHz%s\n",
-			ColorWhite, IconCore, ColorReset,
-			ColorGreen, float64(info.Mhz)/1000, ColorReset)
-	}
-
-	if info.CacheSize > 0 {
-		fmt.Printf("%s%s%s Cache: %s%d KB%s\n",
-			ColorWhite, IconCore, ColorReset,
-			ColorPurple, info.CacheSize, ColorReset)
-	}
+	fmt.Println(t.Render())
 }
 
 // displayCPUUsage shows overall CPU usage
 func displayCPUUsage() {
-	fmt.Printf("\n%s%s%s Overall CPU Usage %s\n", ColorBold, ColorBlue, IconUsage, ColorReset)
-
 	// Get CPU usage with 1 second interval
 	percent, err := cpu.PercentWithContext(context.Background(), 1*time.Second, false)
 	if err != nil {
@@ -123,20 +118,24 @@ func displayCPUUsage() {
 		return
 	}
 
-	usage := percent[0]
-	color := getUsageColor(usage)
-	bar := generateUsageBar(usage, 20)
+	// Create CPU usage table
+	t := table.NewWriter()
+	t.SetStyle(table.StyleColoredBlackOnBlueWhite)
+	t.SetTitle("CPU Usage")
+	t.AppendHeader(table.Row{"Core", "Overall Usage", "Status"})
+	for i, usage := range percent {
+		t.AppendRow(table.Row{
+			fmt.Sprintf("Core %d", i+1),
+			fmt.Sprintf("%.1f%%", usage),
+			getUsageStatus(usage),
+		})
+	}
 
-	fmt.Printf("%s%s%s Usage: %s%.1f%%%s %s%s\n",
-		ColorWhite, IconUsage, ColorReset,
-		color, usage, ColorReset,
-		ColorGray, bar)
+	fmt.Println(t.Render())
 }
 
 // displayPerCoreUsage shows per-core CPU usage
 func displayPerCoreUsage() {
-	fmt.Printf("\n%s%s%s Per-Core CPU Usage %s\n", ColorBold, ColorBlue, IconCore, ColorReset)
-
 	// Get per-core usage
 	percent, err := cpu.PercentWithContext(context.Background(), 1*time.Second, true)
 	if err != nil {
@@ -149,47 +148,35 @@ func displayPerCoreUsage() {
 		return
 	}
 
-	// Display cores in a grid format
-	coresPerRow := 4
+	// Create per-core usage table
+	t := table.NewWriter()
+	t.SetStyle(table.StyleColoredBlackOnYellowWhite)
+	t.SetTitle("Per-Core CPU Usage")
+	t.AppendHeader(table.Row{"Core", "Usage", "Status"})
+
 	for i, usage := range percent {
-		if i%coresPerRow == 0 {
-			fmt.Print("\n  ")
-		}
-
-		color := getUsageColor(usage)
-		bar := generateUsageBar(usage, 8)
-
-		fmt.Printf("%sCore %2d: %s%5.1f%%%s %s%s  ",
-			ColorWhite, i+1,
-			color, usage, ColorReset,
-			ColorGray, bar)
+		t.AppendRow(table.Row{
+			fmt.Sprintf("Core %d", i+1),
+			fmt.Sprintf("%.1f%%", usage),
+			getUsageStatus(usage),
+		})
 	}
-	fmt.Println()
+
+	fmt.Println(t.Render())
 }
 
-// getUsageColor returns appropriate color based on usage percentage
-func getUsageColor(usage float64) string {
+// getUsageStatus returns status text based on usage percentage
+func getUsageStatus(usage float64) string {
 	switch {
 	case usage >= 90:
-		return ColorRed
+		return "Critical"
 	case usage >= 70:
-		return ColorYellow
+		return "High"
 	case usage >= 50:
-		return ColorBlue
+		return "Moderate"
 	default:
-		return ColorGreen
+		return "Normal"
 	}
-}
-
-// generateUsageBar creates a visual bar representation of usage
-func generateUsageBar(usage float64, width int) string {
-	filled := int(math.Round(usage / 100 * float64(width)))
-	if filled > width {
-		filled = width
-	}
-
-	bar := strings.Repeat(IconBar, filled) + strings.Repeat(IconEmpty, width-filled)
-	return fmt.Sprintf("[%s]", bar)
 }
 
 // MemoryInspection performs a comprehensive memory inspection with professional formatting
@@ -218,85 +205,101 @@ func MemoryInspection() {
 
 // displayMemoryInfo shows basic memory information
 func displayMemoryInfo(memInfo *mem.VirtualMemoryStat) {
-	fmt.Printf("\n%s%s%s Memory Information %s\n", ColorBold, ColorBlue, IconInfo, ColorReset)
+	// Create memory information table
+	t := table.NewWriter()
+	t.SetTitle("Memory Information")
+	t.AppendHeader(table.Row{"Property", "Value"})
 
-	// Total memory
-	fmt.Printf("%s%s%s Total: %s%s%s\n",
-		ColorWhite, IconRAM, ColorReset,
-		ColorCyan, formatBytes(memInfo.Total), ColorReset)
+	t.AppendRow(table.Row{
+		IconRAM + " Total Memory",
+		formatBytes(memInfo.Total),
+	})
 
-	// Available memory
-	fmt.Printf("%s%s%s Available: %s%s%s\n",
-		ColorWhite, IconRAM, ColorReset,
-		ColorGreen, formatBytes(memInfo.Available), ColorReset)
+	t.AppendRow(table.Row{
+		IconRAM + " Available Memory",
+		formatBytes(memInfo.Available),
+	})
 
-	// Used memory
-	fmt.Printf("%s%s%s Used: %s%s%s\n",
-		ColorWhite, IconRAM, ColorReset,
-		ColorYellow, formatBytes(memInfo.Used), ColorReset)
+	t.AppendRow(table.Row{
+		IconRAM + " Used Memory",
+		formatBytes(memInfo.Used),
+	})
 
-	// Free memory
-	fmt.Printf("%s%s%s Free: %s%s%s\n",
-		ColorWhite, IconRAM, ColorReset,
-		ColorPurple, formatBytes(memInfo.Free), ColorReset)
+	t.AppendRow(table.Row{
+		IconRAM + " Free Memory",
+		formatBytes(memInfo.Free),
+	})
+
+	fmt.Println(t.Render())
 }
 
 // displayMemoryUsage shows memory usage statistics
 func displayMemoryUsage(memInfo *mem.VirtualMemoryStat) {
-	fmt.Printf("\n%s%s%s Memory Usage %s\n", ColorBold, ColorBlue, IconUsage, ColorReset)
-
 	usagePercent := memInfo.UsedPercent
-	color := getMemoryUsageColor(usagePercent)
-	bar := generateUsageBar(usagePercent, 20)
 
-	fmt.Printf("%s%s%s Usage: %s%.1f%%%s %s%s\n",
-		ColorWhite, IconUsage, ColorReset,
-		color, usagePercent, ColorReset,
-		ColorGray, bar)
+	// Create memory usage table
+	t := table.NewWriter()
+	t.SetTitle("Memory Usage")
+	t.AppendHeader(table.Row{"Metric", "Value"})
 
-	// Memory pressure indicator
-	fmt.Printf("%s%s%s Pressure: %s%s%s\n",
-		ColorWhite, IconRAM, ColorReset,
-		getMemoryPressureColor(usagePercent), getMemoryPressureText(usagePercent), ColorReset)
+	t.AppendRow(table.Row{
+		IconUsage + " Usage Percentage",
+		fmt.Sprintf("%.1f%%", usagePercent),
+	})
+
+	t.AppendRow(table.Row{
+		IconRAM + " Memory Pressure",
+		getMemoryPressureText(usagePercent),
+	})
+
+	fmt.Println(t.Render())
 }
 
 // displaySwapInfo shows swap memory information
 func displaySwapInfo() {
 	swapInfo, err := mem.SwapMemory()
 	if err != nil {
-		fmt.Printf("\n%s%s%s Swap Information %s\n", ColorBold, ColorBlue, IconSwap, ColorReset)
-		fmt.Printf("%s%s Swap not available or disabled%s\n", ColorYellow, IconWarning, ColorReset)
+		// Create swap information table for unavailable swap
+		t := table.NewWriter()
+		t.SetTitle("Swap Information")
+		t.AppendHeader(table.Row{"Status"})
+
+		t.AppendRow(table.Row{IconWarning + " Swap not available or disabled"})
+		fmt.Println(t.Render())
 		return
 	}
 
-	fmt.Printf("\n%s%s%s Swap Information %s\n", ColorBold, ColorBlue, IconSwap, ColorReset)
+	// Create swap information table
+	t := table.NewWriter()
+	t.SetTitle("Swap Information")
+	t.AppendHeader(table.Row{"Property", "Value"})
 
-	// Total swap
-	fmt.Printf("%s%s%s Total: %s%s%s\n",
-		ColorWhite, IconSwap, ColorReset,
-		ColorCyan, formatBytes(swapInfo.Total), ColorReset)
+	t.AppendRow(table.Row{
+		IconSwap + " Total Swap",
+		formatBytes(swapInfo.Total),
+	})
 
-	// Used swap
-	fmt.Printf("%s%s%s Used: %s%s%s\n",
-		ColorWhite, IconSwap, ColorReset,
-		ColorYellow, formatBytes(swapInfo.Used), ColorReset)
+	t.AppendRow(table.Row{
+		IconSwap + " Used Swap",
+		formatBytes(swapInfo.Used),
+	})
 
-	// Free swap
-	fmt.Printf("%s%s%s Free: %s%s%s\n",
-		ColorWhite, IconSwap, ColorReset,
-		ColorGreen, formatBytes(swapInfo.Free), ColorReset)
+	t.AppendRow(table.Row{
+		IconSwap + " Free Swap",
+		formatBytes(swapInfo.Free),
+	})
 
 	// Swap usage percentage
 	if swapInfo.Total > 0 {
 		swapPercent := (float64(swapInfo.Used) / float64(swapInfo.Total)) * 100
-		color := getMemoryUsageColor(swapPercent)
-		bar := generateUsageBar(swapPercent, 20)
 
-		fmt.Printf("%s%s%s Usage: %s%.1f%%%s %s%s\n",
-			ColorWhite, IconUsage, ColorReset,
-			color, swapPercent, ColorReset,
-			ColorGray, bar)
+		t.AppendRow(table.Row{
+			IconUsage + " Usage Percentage",
+			fmt.Sprintf("%.1f%%", swapPercent),
+		})
 	}
+
+	fmt.Println(t.Render())
 }
 
 // formatBytes converts bytes to human readable format
@@ -311,34 +314,6 @@ func formatBytes(bytes uint64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
-}
-
-// getMemoryUsageColor returns appropriate color based on memory usage percentage
-func getMemoryUsageColor(usage float64) string {
-	switch {
-	case usage >= 90:
-		return ColorRed
-	case usage >= 80:
-		return ColorYellow
-	case usage >= 60:
-		return ColorBlue
-	default:
-		return ColorGreen
-	}
-}
-
-// getMemoryPressureColor returns color for memory pressure indicator
-func getMemoryPressureColor(usage float64) string {
-	switch {
-	case usage >= 90:
-		return ColorRed
-	case usage >= 80:
-		return ColorYellow
-	case usage >= 60:
-		return ColorBlue
-	default:
-		return ColorGreen
-	}
 }
 
 // getMemoryPressureText returns text for memory pressure indicator
